@@ -2,6 +2,13 @@
 
 type VoicePhase = 'inactive' | 'starting' | 'active' | 'stopping';
 type VoiceActivity = 'idle' | 'listening' | 'speaking';
+type PersonaExpression =
+  | 'neutral'
+  | 'happy'
+  | 'sad'
+  | 'surprised'
+  | 'embarrassed'
+  | 'angry';
 
 interface VoiceState {
   activity: VoiceActivity;
@@ -102,6 +109,8 @@ interface CustomAnimationMetadata {
 type AvatarBridgeEvent =
   | { type: 'state'; state: VoiceState }
   | { type: 'audio-level'; level: number; bands?: Record<string, number> }
+  | { type: 'text-speaking'; active: boolean }
+  | { type: 'expression'; expression: PersonaExpression }
   | {
       type: 'animation';
       animation: PersonaAnimationType | 'CUSTOM';
@@ -117,6 +126,7 @@ interface Window {
   personaBridge?: {
     getSnapshot(): Promise<AvatarBridgeEvent | null>;
     hide(): void;
+    setClickThrough(enabled: boolean): void;
     subscribe(listener: (event: AvatarBridgeEvent) => void): () => void;
   };
   personaSettings?: {
@@ -153,5 +163,22 @@ interface Window {
     subscribe(
       listener: (snapshot: PersonaSettingsSnapshot) => void,
     ): () => void;
+  };
+  personaChat?: {
+    send(request: {
+      apiKey: string;
+      model: 'gpt-5.5' | 'gpt-5.6-sol';
+      messages: Array<{
+        role: 'user' | 'assistant';
+        content: string;
+      }>;
+    }): Promise<{
+      reply: string;
+      expression: PersonaExpression;
+    }>;
+    setPresentation(presentation: {
+      speaking: boolean;
+      expression: PersonaExpression;
+    }): void;
   };
 }

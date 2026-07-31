@@ -8,10 +8,22 @@ export function useAmplitudeLipSync(vrm: VRM | null) {
   const phase = useRef(0);
 
   return useCallback(
-    (delta: number, level: number, speaking: boolean) => {
+    (
+      delta: number,
+      level: number,
+      speaking: boolean,
+      textSpeaking = false,
+    ) => {
       if (!vrm?.expressionManager) return;
       const audible = speaking && level > 0.008;
-      const normalized = audible ? Math.min(1, Math.max(0, level) * 2.8) : 0;
+      const textLevel = textSpeaking
+        ? 0.48 + Math.sin(phase.current * 1.7) * 0.2
+        : 0;
+      const normalized = textSpeaking
+        ? textLevel
+        : audible
+          ? Math.min(1, Math.max(0, level) * 2.8)
+          : 0;
       const smoothing = 1 - Math.exp(-delta / (normalized > smoothed.current ? 0.055 : 0.1));
       smoothed.current += (normalized - smoothed.current) * smoothing;
       phase.current += delta * (8 + smoothed.current * 9);

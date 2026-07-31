@@ -75,10 +75,74 @@ test("only accepts supported app and local webview origins", () => {
   assert.equal(originAllowed("http://127.0.0.1:5175"), true);
   assert.equal(originAllowed("http://localhost:5175"), true);
   assert.equal(originAllowed("codex-app://codex"), true);
+  assert.equal(
+    originAllowed("chrome-extension://abcdefghijklmnopabcdefghijklmnop"),
+    true,
+  );
+  assert.equal(originAllowed("chrome-extension://not-a-valid-id"), false);
   assert.equal(originAllowed("null"), false);
   assert.equal(originAllowed("https://example.com"), false);
   assert.equal(originAllowed("codex://settings"), false);
   assert.equal(originAllowed(undefined), true);
+});
+
+test("bridge accepts local ChatGPT Chrome extension events", async (context) => {
+  const events = [];
+  const bridge = createBridgeServer({
+    port: 0,
+    onEvent: (event) => events.push(event),
+  });
+  const address = await bridge.listen();
+  context.after(() => bridge.close());
+  const origin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+
+  const preflight = await requestServer(address, {
+    path: "/events",
+    method: "OPTIONS",
+    headers: { origin },
+  });
+  const body = JSON.stringify({
+    type: "assistant_text_delta",
+    message_id: "turn-1",
+    text: "visible reply text",
+  });
+  const response = await requestServer(address, {
+    path: "/events",
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin,
+    },
+    body,
+  });
+
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers["access-control-allow-origin"], origin);
+  assert.equal(response.status, 202);
+  assert.deepEqual(events, [
+    {
+      type: "assistant_text_delta",
+      messageId: "turn-1",
+      source: "chatgpt-chrome",
+      text: "visible reply text",
+    },
+  ]);
+});
+
+test("normalizes local conversation context on assistant start", () => {
+  assert.deepEqual(
+    normalizeEvent({
+      type: "assistant_started",
+      message_id: "turn-2",
+      user_text: "이 답변 바로 앞의 사용자 메시지",
+    }),
+    {
+      type: "assistant_started",
+      messageId: "turn-2",
+      userText: "이 답변 바로 앞의 사용자 메시지",
+      source: "chatgpt-chrome",
+    },
+  );
 });
 
 test("only accepts loopback Host headers", () => {

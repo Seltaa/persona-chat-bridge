@@ -48,14 +48,20 @@ function loadPreload() {
   return { exposed, invocations, listeners, sent };
 }
 
-test("preload exposes only narrow Persona and settings IPC operations", async () => {
+test("preload exposes only narrow Persona, settings, and chat IPC operations", async () => {
   const { exposed, invocations, listeners, sent } = loadPreload();
   const bridge = exposed.get("personaBridge");
   const settings = exposed.get("personaSettings");
+  const chat = exposed.get("personaChat");
 
-  assert.deepEqual([...exposed.keys()], ["personaBridge", "personaSettings"]);
+  assert.deepEqual([...exposed.keys()], [
+    "personaBridge",
+    "personaSettings",
+    "personaChat",
+  ]);
   await bridge.getSnapshot();
   bridge.hide();
+  bridge.setClickThrough(true);
   await settings.get();
   await settings.importModel({ model_name: "Studio Assistant" });
   await settings.createAnimation({
@@ -82,6 +88,12 @@ test("preload exposes only narrow Persona and settings IPC operations", async ()
   await settings.resetModelLighting("model-id");
   await settings.getMcpStatus();
   settings.setWindowTheme("light");
+  await chat.send({
+    apiKey: "test-key",
+    model: "gpt-5.6-sol",
+    messages: [{ role: "user", content: "hello" }],
+  });
+  chat.setPresentation({ speaking: true, expression: "happy" });
 
   assert.deepEqual(invocations, [
     ["persona:get-snapshot"],
@@ -125,10 +137,23 @@ test("preload exposes only narrow Persona and settings IPC operations", async ()
     ],
     ["persona:settings-reset-model-lighting", "model-id"],
     ["persona:settings-get-mcp-status"],
+    [
+      "persona:chat-send",
+      {
+        apiKey: "test-key",
+        model: "gpt-5.6-sol",
+        messages: [{ role: "user", content: "hello" }],
+      },
+    ],
   ]);
   assert.deepEqual(sent, [
     ["persona:hide"],
+    ["persona:set-click-through", true],
     ["persona:settings-set-window-theme", "light"],
+    [
+      "persona:chat-presentation",
+      { speaking: true, expression: "happy" },
+    ],
   ]);
 
   const snapshots = [];

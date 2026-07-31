@@ -5,6 +5,7 @@ import { useVrmLoader } from '../hooks/useVrmLoader';
 import { useVrmAnimation } from '../hooks/useVrmAnimation';
 import { useAmplitudeLipSync } from '../hooks/useAmplitudeLipSync';
 import { useBlink } from '../hooks/useBlink';
+import { useVrmExpression } from '../hooks/useVrmExpression';
 import type { PlayableAnimationType } from '../animation-catalog';
 
 interface AvatarProps {
@@ -12,10 +13,12 @@ interface AvatarProps {
   animationRequest: number;
   animationUrls?: readonly string[];
   audioLevel: number;
+  expression: PersonaExpression;
   modelUrl: string;
   onAnimationComplete: () => void;
   playback: 'loop' | 'once';
   speaking: boolean;
+  textSpeaking: boolean;
   onReady?: (scene: THREE.Object3D) => void;
 }
 
@@ -24,16 +27,19 @@ function AvatarModel({
   animationRequest,
   animationUrls,
   audioLevel,
+  expression,
   modelUrl,
   onAnimationComplete,
   playback,
   speaking,
+  textSpeaking,
   onReady,
 }: AvatarProps) {
   const vrm = useVrmLoader(modelUrl);
   const { play, update: updateAnimation } = useVrmAnimation(vrm);
   const updateLipSync = useAmplitudeLipSync(vrm);
   const updateBlink = useBlink(vrm);
+  const updateExpression = useVrmExpression(vrm, expression);
 
   useEffect(() => {
     void play(animation, {
@@ -58,11 +64,21 @@ function AvatarModel({
     if (!vrm) return;
     updateAnimation(delta);
     updateBlink(delta);
-    updateLipSync(delta, audioLevel, speaking);
+    updateLipSync(delta, audioLevel, speaking, textSpeaking);
     vrm.update(delta);
+    updateExpression();
   });
 
-  return vrm ? <primitive object={vrm.scene} /> : null;
+  return vrm ? (
+    <primitive
+      object={vrm.scene}
+      onPointerOver={(event: { stopPropagation: () => void }) => {
+        event.stopPropagation();
+        window.personaBridge?.setClickThrough(false);
+      }}
+      onPointerOut={() => window.personaBridge?.setClickThrough(true)}
+    />
+  ) : null;
 }
 
 export function Avatar(props: AvatarProps) {

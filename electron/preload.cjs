@@ -5,6 +5,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("personaBridge", {
   getSnapshot: () => ipcRenderer.invoke("persona:get-snapshot"),
   hide: () => ipcRenderer.send("persona:hide"),
+  setClickThrough: (enabled) =>
+    ipcRenderer.send("persona:set-click-through", enabled),
   subscribe: (listener) => {
     const handler = (_event, payload) => listener(payload);
     ipcRenderer.on("persona:event", handler);
@@ -59,4 +61,10 @@ contextBridge.exposeInMainWorld("personaSettings", {
     ipcRenderer.on("persona:settings-updated", handler);
     return () => ipcRenderer.off("persona:settings-updated", handler);
   },
+});
+
+contextBridge.exposeInMainWorld("personaChat", {
+  send: (request) => ipcRenderer.invoke("persona:chat-send", request),
+  setPresentation: (presentation) =>
+    ipcRenderer.send("persona:chat-presentation", presentation),
 });

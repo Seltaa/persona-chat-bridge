@@ -3,7 +3,7 @@
 ## Reporting
 
 Report security vulnerabilities through
-[GitHub private vulnerability reporting](https://github.com/xikhar/persona/security/advisories/new).
+[GitHub private vulnerability reporting](https://github.com/Seltaa/persona-chat-bridge/security/advisories/new).
 Do not disclose a suspected vulnerability in a public issue, discussion, or
 pull request before it has been reviewed.
 

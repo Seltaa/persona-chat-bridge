@@ -48,7 +48,7 @@ the safety of participants or the integrity of the community.
 ## Reporting
 
 Report conduct concerns privately through
-[Persona's private reporting form](https://github.com/xikhar/persona/security/advisories/new).
+[Persona Chat Bridge's private reporting form](https://github.com/Seltaa/persona-chat-bridge/security/advisories/new).
 Begin the report title with `Code of Conduct` and include:
 
 - what happened and where;
@@ -98,4 +98,3 @@ This code is adapted from the
 [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct.html).
 Its enforcement structure is informed by the Contributor Covenant's community
 impact guidelines.
-

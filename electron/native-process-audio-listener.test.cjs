@@ -116,3 +116,31 @@ test("native listener cannot attach after it is stopped during discovery", async
 
   assert.equal(spawnCount, 0);
 });
+
+test("Windows monitors every matching browser process tree and uses the loudest level", async () => {
+  const children = [fakeChild(), fakeChild()];
+  const activities = [];
+  let spawnCount = 0;
+  const listener = new NativeProcessAudioListener({
+    platform: "win32",
+    helperPath: __filename,
+    processDiscovery: async () => ({
+      pids: [10, 11, 20, 21],
+      rootPids: [10, 20],
+      preferredRootPids: [10, 20],
+    }),
+    spawnProcess: () => children[spawnCount++],
+    onActivity: (activity) => activities.push(activity),
+    speechReleaseMs: 15,
+  });
+
+  await listener.start();
+  assert.equal(spawnCount, 2);
+  children[0].stdout.emit("data", '{"type":"ready","source":"Windows process audio"}\n');
+  children[1].stdout.emit("data", '{"type":"ready","source":"Windows process audio"}\n');
+  children[0].stdout.emit("data", '{"type":"level","level":0}\n');
+  children[1].stdout.emit("data", '{"type":"level","level":0.3}\n');
+
+  assert.deepEqual(activities.slice(0, 2), ["listening", "speaking"]);
+  listener.stop();
+});

@@ -18,6 +18,7 @@ interface SceneProps {
   animationUrls?: readonly string[];
   audioLevel: number;
   characterSize: number;
+  expression: PersonaExpression;
   enablePan?: boolean;
   framingMargin?: number;
   groundShadow?: boolean;
@@ -26,6 +27,7 @@ interface SceneProps {
   onAnimationComplete: () => void;
   playback: 'loop' | 'once';
   speaking: boolean;
+  textSpeaking: boolean;
 }
 
 interface TargetControls {

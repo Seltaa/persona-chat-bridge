@@ -6,7 +6,7 @@ const { ANIMATION_NAME_PATTERN } = require("./library-catalog.cjs");
 const DEFAULT_PORT = 47831;
 const MAX_BODY_BYTES = 64 * 1024;
 const TRUSTED_ORIGIN =
-  /^(?:https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?|codex-app:\/\/[A-Za-z0-9._~-]*)$/i;
+  /^(?:https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?|codex-app:\/\/[A-Za-z0-9._~-]*|chrome-extension:\/\/[a-p]{32})$/i;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 function isVoiceState(value) {
@@ -38,6 +38,34 @@ function normalizeEvent(value) {
     return {
       type: "animation-command",
       animationName: value.animation_name,
+    };
+  }
+  if (
+    ["assistant_started", "assistant_finished"].includes(value?.type) &&
+    (value.message_id == null || typeof value.message_id === "string")
+  ) {
+    return {
+      type: value.type,
+      ...(value.message_id ? { messageId: value.message_id.slice(0, 256) } : {}),
+      ...(value.type === "assistant_started" &&
+      typeof value.user_text === "string"
+        ? { userText: value.user_text.slice(-4_000) }
+        : {}),
+      source: "chatgpt-chrome",
+    };
+  }
+  if (
+    value?.type === "assistant_text_delta" &&
+    typeof value.text === "string" &&
+    value.text.length > 0
+  ) {
+    return {
+      type: "assistant_text_delta",
+      text: value.text.slice(0, 16_000),
+      ...(typeof value.message_id === "string"
+        ? { messageId: value.message_id.slice(0, 256) }
+        : {}),
+      source: "chatgpt-chrome",
     };
   }
   return null;

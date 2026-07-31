@@ -1,12 +1,12 @@
-# Contributing to Persona
+# Contributing to Persona Chat Bridge
 
-Thank you for helping improve Persona. Contributions to code, tests,
+Thank you for helping improve Persona Chat Bridge. Contributions to code, tests,
 documentation, accessibility, packaging, and platform support are welcome.
 
 ## Before you begin
 
 - Read and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
-- Search existing [issues](https://github.com/xikhar/persona/issues) and pull
+- Search existing [issues](https://github.com/Seltaa/persona-chat-bridge/issues) and pull
   requests before starting overlapping work.
 - Discuss substantial product, integration, security, or architecture changes
   in an issue before implementing them. Small, well-scoped fixes can go
@@ -14,10 +14,10 @@ documentation, accessibility, packaging, and platform support are welcome.
 - Report vulnerabilities privately according to [SECURITY.md](SECURITY.md).
   Do not disclose them in a public issue or pull request.
 
-Persona is a visual desktop companion. Changes that record or transmit audio,
-capture microphone input, transcribe conversations, inject into another
-application, or expose general system access are outside the current product
-boundary and require prior design discussion.
+Persona Chat Bridge is a local visual bridge. Changes that record microphone
+input, persist raw audio, use private ChatGPT APIs, read cookies, transmit
+conversation text to third parties, or expose general system access are outside
+the product boundary and require prior design discussion.
 
 ## Development setup
 

@@ -13,7 +13,9 @@ export function useVrmLoader(url: string): VRM | null {
     if (!vrm) return null;
     VRMUtils.removeUnnecessaryVertices(vrm.scene);
     VRMUtils.combineSkeletons(vrm.scene);
-    VRMUtils.combineMorphs(vrm);
+    // Keep custom morph targets that are not registered as standard VRM
+    // expressions. Many avatars use these for gesture-specific faces such as
+    // surprise, embarrassment, tears, or sparkly eyes.
     VRMUtils.rotateVRM0(vrm);
     return vrm;
   }, [gltf]);

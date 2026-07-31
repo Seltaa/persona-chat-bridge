@@ -32,6 +32,9 @@ const BODY_IDLE_DELAY_MS = 650;
 export function App() {
   const [voice, setVoice] = useState<VoiceState>(INITIAL_STATE);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [textSpeaking, setTextSpeaking] = useState(false);
+  const [expression, setExpression] =
+    useState<PersonaExpression>('neutral');
   const [voiceAnimation, setVoiceAnimation] = useState<AnimationType>('IDLE');
   const [bodyOverride, setBodyOverride] =
     useState<BodyAnimationOverride | null>(null);
@@ -49,6 +52,8 @@ export function App() {
         setVoice(event.state);
       } else if (event.type === 'audio-level') {
         setAudioLevel(event.level);
+      } else if (event.type === 'text-speaking') {
+        setTextSpeaking(event.active);
       } else if (event.type === 'animation') {
         if (event.requestId != null) {
           setBodyOverride({
@@ -60,6 +65,8 @@ export function App() {
         } else if (event.animation !== 'CUSTOM') {
           setVoiceAnimation(event.animation);
         }
+      } else if (event.type === 'expression') {
+        setExpression(event.expression);
       }
     });
   }, []);
@@ -124,11 +131,13 @@ export function App() {
         animationUrls={animationUrls}
         audioLevel={audioLevel}
         characterSize={settings.character_size}
+        expression={expression}
         lighting={settings.model_lighting[defaultModel.id]}
         modelUrl={defaultModel.asset_url}
         onAnimationComplete={handleAnimationComplete}
         playback={bodyOverride ? 'once' : 'loop'}
         speaking={speaking}
+        textSpeaking={textSpeaking}
       />
     </main>
   ) : (

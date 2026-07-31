@@ -39,6 +39,13 @@ function identityMatches(process, pattern = DEFAULT_VOICE_APP_PATTERN) {
   return pattern.test(`${process.name} ${process.command}`);
 }
 
+function voiceProcessPriority(process) {
+  const identity = `${process.name} ${process.command}`.toLowerCase();
+  if (identity.includes("openai.codex")) return 0;
+  if (identity.includes("chatgpt")) return 2;
+  return 1;
+}
+
 function selectVoiceProcessTree(processes, {
   ownProcessId = process.pid,
   pattern = DEFAULT_VOICE_APP_PATTERN,
@@ -68,9 +75,15 @@ function selectVoiceProcessTree(processes, {
   const roots = [...directlyMatched]
     .filter((pid) => !directlyMatched.has(byId.get(pid)?.parentId))
     .sort((left, right) => left - right);
+  const preferredRoots = [...roots].sort((left, right) => {
+    const priorityDifference =
+      voiceProcessPriority(byId.get(right)) - voiceProcessPriority(byId.get(left));
+    return priorityDifference || left - right;
+  });
   return {
     pids: [...matched].sort((left, right) => left - right),
     rootPids: roots,
+    preferredRootPids: preferredRoots,
   };
 }
 
@@ -130,4 +143,5 @@ module.exports = {
   parseMacProcessList,
   parseWindowsProcessList,
   selectVoiceProcessTree,
+  voiceProcessPriority,
 };

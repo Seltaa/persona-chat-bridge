@@ -71,6 +71,8 @@ class NativeProcessAudioListener {
     this.pollIntervalMs = pollIntervalMs;
     this.sessionIdleMs = sessionIdleMs;
     this.capture = null;
+    this.captures = new Map();
+    this.captureLevels = new Map();
     this.captureKey = null;
     this.pollTimer = null;
     this.sessionTimer = null;
@@ -124,13 +126,15 @@ class NativeProcessAudioListener {
       const processes = await this.processDiscovery({ platform: this.platform });
       if (this.stopped) return;
       const selectedPids =
-        this.platform === "win32" ? processes.rootPids.slice(0, 1) : processes.pids;
+        this.platform === "win32"
+          ? (processes.preferredRootPids ?? processes.rootPids)
+          : processes.pids;
       const key = selectedPids.join(",");
       if (!key) {
         this.detach();
         return;
       }
-      if (this.capture && this.captureKey === key) return;
+      if ((this.capture || this.captures.size) && this.captureKey === key) return;
       this.detach({ sessionEnded: false });
       this.startCapture(selectedPids, key);
     } catch (error) {
@@ -147,13 +151,28 @@ class NativeProcessAudioListener {
   }
 
   startCapture(processIds, key) {
+    this.captureKey = key;
+    if (this.platform === "win32" && processIds.length > 1) {
+      for (const processId of processIds) {
+        this.startCaptureProcess([processId], String(processId));
+      }
+      return;
+    }
+    this.startCaptureProcess(processIds, key);
+  }
+
+  startCaptureProcess(processIds, childKey) {
     const args = processIds.flatMap((processId) => ["--pid", String(processId)]);
     const child = this.spawnProcess(this.helperPath, args, {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
-    this.capture = child;
-    this.captureKey = key;
+    if (this.platform === "win32") {
+      this.captures.set(childKey, child);
+      this.captureLevels.set(child, 0);
+    } else {
+      this.capture = child;
+    }
     const parse = createNdjsonParser(
       (message) => this.handleHelperMessage(child, message),
       (line) => this.onDebug?.("native listener emitted invalid JSON", line),
@@ -161,25 +180,24 @@ class NativeProcessAudioListener {
     child.stdout.on("data", parse);
     child.stderr.on("data", (chunk) => this.onDebug?.("native listener stderr", chunk.toString()));
     child.once("error", (error) => {
-      if (this.capture !== child) return;
-      this.capture = null;
-      this.captureKey = null;
+      if (!this.removeCapture(child)) return;
       this.reportStatus({
         available: false,
-        capturing: false,
+        capturing: this.hasCaptures(),
         monitoring: true,
         source: null,
         error: error.message,
       });
     });
     child.once("exit", (code, signal) => {
-      if (this.capture !== child) return;
-      this.capture = null;
-      this.captureKey = null;
-      this.gate.reset();
+      if (!this.removeCapture(child)) return;
+      if (!this.hasCaptures()) {
+        this.captureKey = null;
+        this.gate.reset();
+      }
       this.reportStatus({
         available: true,
-        capturing: false,
+        capturing: this.hasCaptures(),
         monitoring: !this.stopped,
         source: null,
         ...(code && !this.stopped
@@ -189,8 +207,30 @@ class NativeProcessAudioListener {
     });
   }
 
+  hasCaptures() {
+    return Boolean(this.capture) || this.captures.size > 0;
+  }
+
+  removeCapture(child) {
+    if (this.capture === child) {
+      this.capture = null;
+      return true;
+    }
+    for (const [key, capture] of this.captures) {
+      if (capture !== child) continue;
+      this.captures.delete(key);
+      this.captureLevels.delete(child);
+      return true;
+    }
+    return false;
+  }
+
   handleHelperMessage(child, message) {
-    if (this.capture !== child || message == null || typeof message !== "object") return;
+    if (
+      (this.capture !== child && ![...this.captures.values()].includes(child)) ||
+      message == null ||
+      typeof message !== "object"
+    ) return;
     if (message.type === "ready") {
       this.reportStatus({
         available: true,
@@ -212,7 +252,11 @@ class NativeProcessAudioListener {
     }
     if (message.type !== "level" || !Number.isFinite(message.level)) return;
 
-    const level = Math.max(0, Math.min(1, Number(message.level)));
+    let level = Math.max(0, Math.min(1, Number(message.level)));
+    if (this.platform === "win32") {
+      this.captureLevels.set(child, level);
+      level = Math.max(0, ...this.captureLevels.values());
+    }
     if (level > 0.008) {
       clearTimeout(this.sessionTimer);
       this.sessionTimer = setTimeout(() => this.endSession(), this.sessionIdleMs);
@@ -239,9 +283,12 @@ class NativeProcessAudioListener {
     if (this.capture) {
       const child = this.capture;
       this.capture = null;
-      this.captureKey = null;
       child.kill();
     }
+    for (const child of this.captures.values()) child.kill();
+    this.captures.clear();
+    this.captureLevels.clear();
+    this.captureKey = null;
     this.gate.reset();
     if (sessionEnded) this.endSession();
     this.reportStatus({

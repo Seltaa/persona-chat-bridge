@@ -1,21 +1,26 @@
 {
-  "name": "persona",
+  "name": "persona-chat-bridge",
   "version": "0.1.0-beta.0",
-  "description": "A realtime character presence for desktop voice experiences.",
+  "description": "A local bridge that gives ChatGPT web conversations an expressive VRM desktop avatar.",
   "author": {
-    "name": "xikhar",
-    "email": "xikhar@users.noreply.github.com"
+    "name": "Seltaa"
   },
-  "desktopName": "persona.desktop",
+  "contributors": [
+    {
+      "name": "xikhar",
+      "email": "xikhar@users.noreply.github.com"
+    }
+  ],
+  "desktopName": "persona-chat-bridge.desktop",
   "private": true,
   "license": "MIT",
-  "homepage": "https://github.com/xikhar/persona#readme",
+  "homepage": "https://github.com/Seltaa/persona-chat-bridge#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xikhar/persona.git"
+    "url": "git+https://github.com/Seltaa/persona-chat-bridge.git"
   },
   "bugs": {
-    "url": "https://github.com/xikhar/persona/issues"
+    "url": "https://github.com/Seltaa/persona-chat-bridge/issues"
   },
   "engines": {
     "node": ">=24"
@@ -79,17 +84,17 @@
     "wait-on": "^9.0.3"
   },
   "build": {
-    "appId": "com.xikhar.persona",
-    "productName": "Persona",
+    "appId": "com.seltaa.persona-chat-bridge",
+    "productName": "Persona Chat Bridge",
     "asar": true,
     "directories": {
       "output": "release"
     },
     "protocols": [
       {
-        "name": "Persona",
+        "name": "Persona Chat Bridge",
         "schemes": [
-          "persona"
+          "persona-chat-bridge"
         ]
       }
     ],
@@ -98,14 +103,21 @@
       "electron/**/*.cjs",
       "!electron/**/*.test.cjs",
       "LICENSE",
+      "THIRD_PARTY_NOTICES.md",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "chrome-extension",
+        "to": "chrome-extension"
+      }
     ],
     "linux": {
       "category": "Utility",
-      "executableName": "persona",
+      "executableName": "persona-chat-bridge",
       "icon": "public/assets/avatar.png",
       "syncDesktopName": true,
-      "artifactName": "Persona-${version}-linux-${arch}.${ext}",
+      "artifactName": "Persona-Chat-Bridge-${version}-linux-${arch}.${ext}",
       "target": [
         "AppImage",
         "deb"
@@ -115,7 +127,7 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "Persona-${version}-windows-${arch}-setup.${ext}",
+      "artifactName": "Persona-Chat-Bridge-${version}-windows-${arch}-setup.${ext}",
       "icon": "public/assets/avatar.png",
       "requestedExecutionLevel": "asInvoker",
       "signExts": [
@@ -133,14 +145,14 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Persona"
+      "shortcutName": "Persona Chat Bridge"
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "artifactName": "Persona-${version}-macos-${arch}.${ext}",
+      "artifactName": "Persona-Chat-Bridge-${version}-macos-${arch}.${ext}",
       "category": "public.app-category.utilities",
       "icon": "public/assets/avatar.png",
       "minimumSystemVersion": "14.2.0",
@@ -151,7 +163,7 @@
         "Contents/Resources/native/darwin/persona-audio-listener"
       ],
       "extendInfo": {
-        "NSAudioCaptureUsageDescription": "Persona listens to supported voice-app output levels to animate your character. Audio is processed in memory and is never stored."
+        "NSAudioCaptureUsageDescription": "Persona Chat Bridge listens to supported voice-app output levels to animate your character. Audio is processed in memory and is never stored."
       },
       "extraResources": [
         {
@@ -162,6 +174,7 @@
     }
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^4.4.3"
   }

@@ -14,6 +14,7 @@ const {
   nativeTheme,
   protocol,
   screen,
+  shell,
   Tray,
 } = require("electron");
 const { createBridgeServer, DEFAULT_PORT } = require("./bridge-server.cjs");
@@ -33,11 +34,23 @@ const { parseProtocolUrl, voiceState } = require("./protocol-actions.cjs");
 const {
   createSettingsWindowPresentationGate,
 } = require("./settings-window-presentation.cjs");
+const { requestOpenAiChat } = require("./openai-chat.cjs");
+const {
+  chromeChatEventToBridgeEvents,
+} = require("./chrome-chat-events.cjs");
+const {
+  createLocalExpressionClassifier,
+} = require("./local-expression-classifier.cjs");
+const {
+  createContextualExpressionController,
+} = require("./contextual-expression-controller.cjs");
 
 const WINDOW_WIDTH = 430;
 const WINDOW_HEIGHT = 680;
 const SETTINGS_WINDOW_WIDTH = 1180;
 const SETTINGS_WINDOW_HEIGHT = 780;
+const CHAT_WINDOW_WIDTH = 460;
+const CHAT_WINDOW_HEIGHT = 720;
 // Chromium paints this behind newly exposed areas during a resize, so it must
 // track the renderer's --bg-window token in src/styles.css.
 const SETTINGS_WINDOW_BACKGROUND = {
@@ -47,11 +60,12 @@ const SETTINGS_WINDOW_BACKGROUND = {
 const PERSONA_ASSET_SCHEME = "persona-asset";
 const startInBackground = process.argv.includes("--background");
 const startInSettings = process.argv.includes("--settings");
-const protocolScheme = "persona";
+const protocolScheme = "persona-chat-bridge";
 const debugEnabled = process.env.PERSONA_DEBUG === "1";
 
 let avatarWindow = null;
 let settingsWindow = null;
+let chatWindow = null;
 let settingsWindowPresentationGate = null;
 let settingsStore = null;
 let bridge = null;
@@ -61,6 +75,7 @@ let latestEvent = null;
 let latestListenerStatus = null;
 let latestVoiceState = null;
 let audioListener = null;
+let contextualExpressionController = null;
 let tray = null;
 let hyprlandConfigured = false;
 let hyprlandConfiguring = false;
@@ -225,6 +240,14 @@ function rendererUrl(view = null) {
 
 function secureRendererWindow(window, allowedRendererUrl) {
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  if (debugEnabled) {
+    window.webContents.on("console-message", (event, details) => {
+      console.log(
+        "[persona renderer]",
+        details?.message ?? event?.message ?? "(empty console message)",
+      );
+    });
+  }
   window.webContents.on("will-navigate", (event, targetUrl) => {
     if (!isAllowedRendererNavigation(targetUrl, allowedRendererUrl)) {
       event.preventDefault();
@@ -261,6 +284,9 @@ function createWindow() {
 
   window.setAlwaysOnTop(true, "floating");
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // Let clicks pass through the transparent canvas. The renderer temporarily
+  // disables this only while the pointer is directly over the VRM model.
+  window.setIgnoreMouseEvents(true, { forward: true });
   window.setOpacity(1);
   window.once("ready-to-show", () => {
     if (window.isDestroyed()) return;
@@ -312,7 +338,7 @@ function createSettingsWindow() {
     minWidth: 920,
     minHeight: 640,
     show: false,
-    title: "Persona Settings",
+    title: "Persona Chat Bridge Settings",
     // Best guess until the renderer reports the theme it actually resolved,
     // which it does before the window is shown on ready-to-show.
     backgroundColor: settingsWindowBackground(
@@ -347,6 +373,47 @@ function createSettingsWindow() {
     settingsWindowPresentationGate = null;
   });
   void window.loadURL(settingsRendererUrl);
+  return window;
+}
+
+function createChatWindow() {
+  if (chatWindow && !chatWindow.isDestroyed()) return chatWindow;
+  const window = new BrowserWindow({
+    width: CHAT_WINDOW_WIDTH,
+    height: CHAT_WINDOW_HEIGHT,
+    minWidth: 360,
+    minHeight: 520,
+    show: false,
+    title: "Persona Chat Bridge Fallback Chat",
+    backgroundColor: settingsWindowBackground(
+      nativeTheme.shouldUseDarkColors ? "dark" : "light",
+    ),
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  chatWindow = window;
+  const chatRendererUrl = rendererUrl("chat");
+  secureRendererWindow(window, chatRendererUrl);
+  window.once("ready-to-show", () => {
+    if (!window.isDestroyed()) window.show();
+  });
+  window.on("closed", () => {
+    if (chatWindow === window) chatWindow = null;
+  });
+  void window.loadURL(chatRendererUrl);
+  return window;
+}
+
+function showChat() {
+  const window = createChatWindow();
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
   return window;
 }
 
@@ -388,7 +455,7 @@ function publishSettings(snapshot) {
     mcpAnimationCatalogSignature = nextAnimationCatalogSignature;
     mcpHandler?.notifyToolsChanged();
   }
-  for (const window of [avatarWindow, settingsWindow]) {
+  for (const window of [avatarWindow, settingsWindow, chatWindow]) {
     if (window && !window.isDestroyed() && !window.webContents.isLoading()) {
       window.webContents.send("persona:settings-updated", snapshot);
     }
@@ -510,6 +577,14 @@ function handleIntegrationEvent(event) {
   if (event.type === "animation-command") {
     return playConfiguredAnimation(event.animationName);
   }
+  contextualExpressionController?.handle(event);
+  const chromeChatEvents = chromeChatEventToBridgeEvents(event);
+  if (chromeChatEvents) {
+    for (const bridgeEvent of chromeChatEvents) {
+      handleBridgeEvent(bridgeEvent);
+    }
+    return true;
+  }
   handleBridgeEvent(event);
   return true;
 }
@@ -560,6 +635,19 @@ function handleProtocolArgv(argv) {
   if (protocolUrl) handleProtocolUrl(protocolUrl);
 }
 
+async function openChromeExtensionFolder() {
+  const extensionPath = app.isPackaged
+    ? path.join(process.resourcesPath, "chrome-extension")
+    : path.join(__dirname, "..", "chrome-extension");
+  const error = await shell.openPath(extensionPath);
+  if (error) {
+    dialog.showErrorBox(
+      "Persona Chat Bridge",
+      `Could not open the Chrome extension folder.\n\n${error}`,
+    );
+  }
+}
+
 function refreshTrayMenu() {
   if (!tray) return;
   const ready = hasConfiguredModel();
@@ -572,8 +660,20 @@ function refreshTrayMenu() {
   };
   const template = ready
     ? [
-        { label: "Show Persona", click: () => showOverlay({ focus: true }) },
-        { label: "Hide Persona", click: () => void hideOverlay() },
+        { label: "Open Chat (fallback)", click: showChat },
+        {
+          label: "Open Chrome Extension Folder",
+          click: () => void openChromeExtensionFolder(),
+        },
+        { type: "separator" },
+        {
+          label: "Show Persona Chat Bridge",
+          click: () => showOverlay({ focus: true }),
+        },
+        {
+          label: "Hide Persona Chat Bridge",
+          click: () => void hideOverlay(),
+        },
         { label: "Settings…", click: showSettings },
         { type: "separator" },
         {
@@ -605,7 +705,7 @@ function createTray() {
   );
   const icon = nativeImage.createFromPath(iconPath).resize({ width: 20, height: 20 });
   tray = new Tray(icon);
-  tray.setToolTip("Persona");
+  tray.setToolTip("Persona Chat Bridge");
   refreshTrayMenu();
   tray.on("click", toggleOverlay);
 }
@@ -626,9 +726,36 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
-    app.setAppUserModelId("com.xikhar.persona");
+    app.setAppUserModelId("com.seltaa.persona-chat-bridge");
     app.dock?.hide();
     if (app.isPackaged) app.setAsDefaultProtocolClient(protocolScheme);
+    const expressionClassifier = createLocalExpressionClassifier({
+      cacheDir: path.join(app.getPath("userData"), "models"),
+    });
+    contextualExpressionController = createContextualExpressionController({
+      classify: async (context) => {
+        const expression = await expressionClassifier.classify(context);
+        debugLog("contextual expression classified", {
+          expression,
+          userChars: context.userText.length,
+          assistantChars: context.assistantText.length,
+        });
+        return expression;
+      },
+      onExpression: (expression) =>
+        handleBridgeEvent({ type: "expression", expression }),
+      onError: (error) =>
+        debugLog(
+          "contextual expression unavailable",
+          error instanceof Error ? error.message : String(error),
+        ),
+    });
+    void expressionClassifier.preload().catch((error) => {
+      console.warn(
+        "[persona] local expression model unavailable:",
+        error instanceof Error ? error.message : String(error),
+      );
+    });
     settingsStore = createSettingsStore({
       userDataPath: app.getPath("userData"),
       packagedLibraryPath: path.join(
@@ -653,6 +780,40 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     ipcMain.handle("persona:get-snapshot", () => latestEvent);
+    ipcMain.on("persona:set-click-through", (event, enabled) => {
+      if (!avatarWindow || event.sender !== avatarWindow.webContents) return;
+      avatarWindow.setIgnoreMouseEvents(Boolean(enabled), { forward: true });
+    });
+    ipcMain.handle("persona:chat-send", async (event, request) => {
+      if (!chatWindow || event.sender !== chatWindow.webContents) {
+        throw new Error("Chat request rejected.");
+      }
+      handleBridgeEvent(voiceState("speaking"));
+      handleBridgeEvent({ type: "expression", expression: "neutral" });
+      try {
+        return await requestOpenAiChat(request);
+      } catch (error) {
+        handleBridgeEvent(voiceState("idle", "inactive"));
+        handleBridgeEvent({ type: "expression", expression: "neutral" });
+        throw error;
+      }
+    });
+    ipcMain.on("persona:chat-presentation", (event, presentation) => {
+      if (!chatWindow || event.sender !== chatWindow.webContents) return;
+      const expression =
+        typeof presentation?.expression === "string"
+          ? presentation.expression
+          : "neutral";
+      handleBridgeEvent({
+        type: "expression",
+        expression,
+      });
+      handleBridgeEvent(
+        presentation?.speaking
+          ? voiceState("speaking")
+          : voiceState("idle", "inactive"),
+      );
+    });
     ipcMain.handle("persona:settings-get", () => settingsStore.getSnapshot());
     ipcMain.handle("persona:settings-import-model", async (_event, metadata) => {
       const filePath = await selectAssetFile("model");

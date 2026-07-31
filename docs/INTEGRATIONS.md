@@ -16,7 +16,7 @@ Persona serves a Streamable HTTP MCP endpoint while the app is running. Add it
 to Codex once:
 
 ```bash
-codex mcp add persona --url http://127.0.0.1:47831/mcp
+codex mcp add persona-chat-bridge --url http://127.0.0.1:47831/mcp
 ```
 
 Start a new Codex session after registering the server. You can inspect the
@@ -86,18 +86,18 @@ PERSONA_TARGET_PROCESS_PATTERN='my-voice-app' persona
 
 ## URL protocol
 
-Installed packages register `persona://`.
+Installed packages register `persona-chat-bridge://`.
 
 | URL | Effect |
 | --- | --- |
-| `persona://show` | Show and focus Persona |
-| `persona://hide` | Hide Persona without quitting |
-| `persona://toggle` | Toggle visibility |
-| `persona://listening` | Begin a listening state |
-| `persona://thinking` | Settle the character while a response is prepared |
-| `persona://speaking?level=0.3` | Begin speaking and optionally set a level |
-| `persona://inactive` | End the voice state without hiding Persona |
-| `persona://animation?name=<animation-name>` | Play an active configured animation once |
+| `persona-chat-bridge://show` | Show and focus Persona Chat Bridge |
+| `persona-chat-bridge://hide` | Hide Persona Chat Bridge without quitting |
+| `persona-chat-bridge://toggle` | Toggle visibility |
+| `persona-chat-bridge://listening` | Begin a listening state |
+| `persona-chat-bridge://thinking` | Settle the character while a response is prepared |
+| `persona-chat-bridge://speaking?level=0.3` | Begin speaking and optionally set a level |
+| `persona-chat-bridge://inactive` | End the voice state without hiding Persona Chat Bridge |
+| `persona-chat-bridge://animation?name=<animation-name>` | Play an active configured animation once |
 
 Open these URLs with `xdg-open` on Linux, `open` on macOS, or `start` on
 Windows.

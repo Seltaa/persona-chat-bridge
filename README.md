@@ -1,199 +1,100 @@
 <p align="center">
-  <img src="./public/assets/avatar.png" alt="Persona avatar" width="144" />
+  <img src="./public/assets/avatar.png" alt="Persona Chat Bridge" width="144" />
 </p>
 
-<h1 align="center">Persona</h1>
+<h1 align="center">Persona Chat Bridge</h1>
 
 <p align="center">
-  A realtime character presence for desktop voice experiences.
+  Give your existing ChatGPT web conversation an expressive VRM desktop avatar.
 </p>
 
----
+Persona Chat Bridge is a modified fork of [Persona by xikhar](https://github.com/xikhar/persona). It keeps Persona's desktop VRM, VRMA, voice-listener, and MCP foundations while adding a local Chrome bridge, text lip sync, and multilingual context-aware expressions.
 
-Persona is a cross-platform desktop character that gives voice conversations
-an expressive visual identity alongside your work.
+## What it does
 
-## Platform support
+- Imports your own `.vrm` character and `.vrma` motions.
+- Watches only the visible ChatGPT conversation in Chrome through an unpacked extension.
+- Starts the configured **Speaking** motion while an assistant reply is appearing, then returns to **Idle**.
+- Animates the mouth during text replies.
+- Infers expressions from conversation context in many languages using a local model.
+- Preserves Persona's custom actions and local MCP controls.
+- Includes a small built-in OpenAI chat as an optional fallback, not the primary experience.
 
-| Platform    | Automatic voice output listener | Distribution               |
-| ----------- | ------------------------------- | -------------------------- |
-| Linux       | PipeWire process-stream capture | AppImage and DEB           |
-| Windows     | WASAPI process-loopback capture | NSIS installer             |
-| macOS 14.2+ | Core Audio process tap          | DMG and ZIP, arm64 and x64 |
+## Privacy
 
-Linux requires `pw-dump` and `pw-record` on `PATH`. Windows process-loopback
-requires Windows 10 build 20348 or newer. macOS asks once for System Audio
-Recording permission.
+The Chrome extension does not use private ChatGPT APIs, read cookies, or extract hidden account data. It observes visible user and assistant turns and sends local lifecycle events only to `http://127.0.0.1:47831`.
 
-Each listener is scoped to the supported application's playback process. Persona
-does not capture the microphone, save audio, produce speech, transcribe content,
-or send audio over the network.
+Conversation text is used locally for expression inference and is not sent to a third-party server. The multilingual classifier downloads from Hugging Face on first use and is then cached in Electron's local application data. Persona Chat Bridge does not record the microphone, save raw audio, or upload audio.
 
-## Try Persona locally
+## Run from source
 
 Requirements:
 
 - Node.js 24 or newer
 - npm
-- A desktop session with hardware-accelerated graphics
+- Git
+- Windows 10 build 20348 or newer for process audio capture
 
-The packaged character catalog is intentionally empty while the distributable
-defaults are being selected. Persona opens Settings on first launch so you can
-import a local `.vrm` model; ignored media files under `public/assets/` are not
-loaded unless they are declared in the catalog.
-
-To exercise the packaged-library path with the current ignored local test
-media, copy the provided examples over the active empty catalogs:
-
-```bash
-cp public/assets/library.json.example public/assets/library.json
-cp public/assets/manifest.json.example public/assets/manifest.json
-```
-
-Both example files are directly usable and also document the complete catalog
-format. Their media remains test-only: the example manifest deliberately keeps
-distribution disabled and its license fields incomplete.
-
-Packaged VRM files belong under `public/assets/models/`; packaged VRMA files
-belong under `public/assets/animations/`. A catalog can declare multiple
-packaged models. When `default_model_id` is `null`, Persona selects the first
-model record as the packaged default.
-
-```bash
+```powershell
+git clone https://github.com/Seltaa/persona-chat-bridge.git
+cd persona-chat-bridge
 npm install
+npm run native:build
 npm run demo
 ```
 
-`npm run demo` builds the current renderer and launches Persona with normal
-automatic voice-output detection.
+`npm run demo` is the developer launch command. It builds the renderer and keeps diagnostic output in the terminal. Packaged releases launch normally without a terminal window.
 
-For a background launch:
+## Set up the Chrome bridge
 
-```bash
-npm start -- --background
+1. Keep Persona Chat Bridge running.
+2. Right-click its tray icon and choose **Open Chrome Extension Folder**.
+3. Open `chrome://extensions` in Chrome.
+4. Enable **Developer mode**.
+5. Click **Load unpacked** and select the opened `chrome-extension` folder.
+6. Reload the ChatGPT tab.
+
+The extension icon reports whether the local desktop bridge is reachable. All ChatGPT-specific selectors are isolated in `chrome-extension/dom-adapter.js` so UI changes can be repaired without rewriting the transport.
+
+## Add a character and motions
+
+Open **Settings** from the tray menu and import a `.vrm` model. The first imported model becomes the default. Add one or more `.vrma` clips to **Idle** and **Speaking**; Persona chooses randomly between clips whenever that action begins.
+
+Custom actions can also be created with a name, description, and trigger scenario. These remain available through Persona's MCP integration.
+
+Character models and animation files are not included. Only use assets you have permission to use, and never republish purchased or restricted VRM/VRMA files with this project.
+
+## Optional MCP integration
+
+With the app running:
+
+```powershell
+codex mcp add persona-chat-bridge --url http://127.0.0.1:47831/mcp
 ```
 
-## Customize Persona
+MCP can play configured actions, show or hide the avatar, and read local readiness status. It does not expose filesystem, transcript, or raw audio access.
 
-Open **Settings…** from Persona's tray menu to manage the character library.
-You can preview installed models and animation actions together, choose the
-default model, set the character's initial size, and add your own `.vrm` and
-`.vrma` files.
+## Build a Windows installer
 
-Until a default model exists, Persona does not create the avatar window or
-start its voice-output listener. The first imported model becomes the default
-automatically.
-
-Persona always provides **Idle** and **Speaking** action slots. They begin
-without media, so the model keeps its normal pose until you add clips. Each
-action can contain multiple `.vrma` files; uploads receive numbered names such
-as `idle1`, `idle2`, `speaking1`, or `wave1`. Persona chooses a clip from the
-action whenever that action runs.
-
-Custom actions include a name, description, and trigger scenario. Persona adds
-that metadata to its MCP animation tool so a connected agent can understand
-what the action expresses and when to use it. Imported media and configuration
-changes stay in Persona's local application data.
-
-Packaged media is immutable. Editing or removing a packaged action creates a
-user-level override without changing the installed application. **Reset
-packaged actions** restores shipped metadata and visibility while leaving
-user-created actions and uploaded clips untouched.
-
-## Connect Persona to Codex
-
-With Persona running, register its local MCP server:
-
-```bash
-codex mcp add persona --url http://127.0.0.1:47831/mcp
-```
-
-New Codex sessions can then ask Persona to play an installed animation, show or
-hide its window, and report whether the local character and voice listener are
-active. Persona remains a separate desktop application; the MCP connection
-only exposes its own visual controls.
-
-The window intentionally contains no controls:
-
-- Scroll to zoom.
-- Left-drag to orbit.
-- Right-drag to pan.
-- Use your window manager's move gesture to reposition the window.
-
-On Hyprland, Persona also applies floating, pinned, topmost, full-opacity,
-no-blur, no-shadow, and decoration-free properties. macOS uses an all-Spaces
-topmost window. Other desktops use the strongest supported Electron window
-hints.
-
-## Build native packages
-
-Build on the operating system you are targeting:
-
-```bash
-npm run dist:linux
+```powershell
 npm run dist:windows
-npm run dist:mac
 ```
 
-Outputs are written to `release/`. Windows needs Visual Studio Build Tools with
-the C++ desktop workload. macOS needs Xcode Command Line Tools and macOS 14.2+
-SDK support.
-
-GitHub Actions runs the full JavaScript, renderer, native compile, and native
-self-test suite on Linux, Windows, and macOS. Prerelease tags shaped like
-`v0.1.0-beta.0` create native packages and a checksum file, but only after the
-asset release gate passes. See [Releasing](docs/RELEASING.md).
-
-## Replace the character assets before publishing
-
-Character media is intentionally excluded from Git. Local test files must not
-be distributed. The packaged library is declared without a hard-coded filename
-contract in source code:
-
-```text
-public/assets/
-├── library.json
-├── library.json.example
-├── manifest.json
-├── manifest.json.example
-├── models/
-│   └── <model files declared by library.json>
-└── animations/
-    └── <animation files declared by library.json>
-```
-
-Define each packaged model and animation action in `library.json`. Action
-records carry their public name, description, trigger scenario, runtime type,
-and zero or more asset paths. The permanent `system-idle` and
-`system-speaking` records may have empty asset lists. Mirror every declared
-media path in `manifest.json`, then
-complete its license and source fields and set `distributionAllowed` to `true`.
-Remove the VRM and VRMA ignore rules only when the chosen files are safe to
-publish. The release workflow will fail closed until then. Read
-[Asset licenses](ASSET_LICENSES.md).
+The installer is written to `release/`. Windows builds require Visual Studio Build Tools with the **Desktop development with C++** workload. Linux and macOS packaging commands remain available as `npm run dist:linux` and `npm run dist:mac`.
 
 ## Development
 
-```bash
-npm run check
-npm run native:build
-npm run native:test
+```powershell
+npm run lint
+npm test
+npm run assets:check
+npm run build
 ```
 
-The native listener is required before running Persona from source on macOS or
-Windows. Linux captures activity through PipeWire and does not build a helper.
+See [Architecture and development](docs/DEVELOPMENT.md), [integration API](docs/INTEGRATIONS.md), and [release process](docs/RELEASING.md).
 
-Contributions are welcome. Read the [contribution
-guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before
-opening an issue or pull request.
+## Credits and license
 
-More detail:
+Persona Chat Bridge is based on [Persona](https://github.com/xikhar/persona) by xikhar. The application source is distributed under the [MIT License](LICENSE), and the original notice is retained. See [Third-party notices](THIRD_PARTY_NOTICES.md) for the local expression model and runtime dependencies.
 
-- [Architecture and development](docs/DEVELOPMENT.md)
-- [Codex and integration API](docs/INTEGRATIONS.md)
-- [Release process](docs/RELEASING.md)
-- [Security policy](SECURITY.md)
-
-Persona application source is licensed under the [MIT License](LICENSE).
-Bundled character assets are excluded from that license and remain test-only
-until replaced and documented.
+Character assets are not covered by the application license and are not included.

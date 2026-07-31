@@ -18,6 +18,7 @@ test("parses macOS ps output and includes a Codex helper process tree", () => {
   assert.deepEqual(selectVoiceProcessTree(processes, { ownProcessId: 99 }), {
     pids: [10, 11],
     rootPids: [10],
+    preferredRootPids: [10],
   });
 });
 
@@ -41,8 +42,32 @@ test("parses one or many Windows CIM process records", () => {
   assert.deepEqual(selectVoiceProcessTree(processes, { ownProcessId: 999 }), {
     pids: [100, 101],
     rootPids: [100],
+    preferredRootPids: [100],
   });
   assert.equal(parseWindowsProcessList('{"ProcessId":7,"Name":"ChatGPT.exe"}')[0].pid, 7);
+});
+
+test("prefers the standalone ChatGPT app over Codex on Windows", () => {
+  const selected = selectVoiceProcessTree(
+    [
+      {
+        pid: 10,
+        parentId: 1,
+        name: "ChatGPT.exe",
+        command: "C:\\Program Files\\WindowsApps\\OpenAI.Codex_1.0\\app\\ChatGPT.exe",
+      },
+      {
+        pid: 20,
+        parentId: 1,
+        name: "ChatGPT.exe",
+        command: "C:\\Program Files\\WindowsApps\\OpenAI.ChatGPT_1.0\\app\\ChatGPT.exe",
+      },
+    ],
+    { ownProcessId: 999 },
+  );
+
+  assert.deepEqual(selected.rootPids, [10, 20]);
+  assert.deepEqual(selected.preferredRootPids, [20, 10]);
 });
 
 test("supports a custom target application pattern without accepting invalid regex", () => {
@@ -62,5 +87,5 @@ test("does not confuse Persona's project path with the Codex application", () =>
     ],
     { ownProcessId: 999 },
   );
-  assert.deepEqual(selected, { pids: [], rootPids: [] });
+  assert.deepEqual(selected, { pids: [], rootPids: [], preferredRootPids: [] });
 });

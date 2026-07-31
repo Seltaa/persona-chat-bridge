@@ -188,7 +188,7 @@ export function SettingsPage() {
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    document.title = 'Persona Settings';
+    document.title = 'Persona Chat Bridge Settings';
     if (!bridge) {
       void loadPackagedSettingsFallback()
         .then((snapshot) => {
@@ -663,7 +663,7 @@ export function SettingsPage() {
     mcpStatus?.server_url ?? 'http://127.0.0.1:47831/mcp';
   const mcpSetupCommand =
     mcpStatus?.setup_command ??
-    `codex mcp add persona --url ${mcpServerUrl}`;
+    `codex mcp add persona-chat-bridge --url ${mcpServerUrl}`;
 
   return (
     <main
@@ -1794,6 +1794,7 @@ export function SettingsPage() {
                   animationUrls={previewAnimationUrls}
                   audioLevel={0}
                   characterSize={settings.character_size}
+                  expression="neutral"
                   lighting={previewLighting}
                   enablePan={false}
                   framingMargin={1.22}
@@ -1805,6 +1806,7 @@ export function SettingsPage() {
                   }}
                   playback={previewClip ? 'once' : 'loop'}
                   speaking={false}
+                  textSpeaking={false}
                 />
               )}
               <div className="preview-hint">

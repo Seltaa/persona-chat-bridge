@@ -1,7 +1,7 @@
-# Releasing Persona
+# Releasing Persona Chat Bridge
 
 GitHub releases are produced only from version tags. The expected repository is
-`https://github.com/xikhar/persona`; the workflow does not create or push to it.
+`https://github.com/Seltaa/persona-chat-bridge`; the workflow does not create or push to it.
 
 ## One-time repository setup
 
